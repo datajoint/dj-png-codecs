@@ -1,0 +1,200 @@
+[build-system]
+requires = ["hatchling>=1.26", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dj-png-codecs"
+authors = [
+    {name = "Dimitri Yatsenko", email = "dimitri@datajoint.com"},
+]
+description = "DataJoint codecs for storing images as PNG files"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+
+keywords = ["datajoint", "png", "codec", "image-storage"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering",
+  "Typing :: Typed",
+]
+dynamic = ["version"]
+dependencies = [
+    "datajoint>=2.3",
+    "numpy>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/datajoint/dj-png-codecs"
+Repository = "https://github.com/datajoint/dj-png-codecs"
+Documentation = "https://github.com/datajoint/dj-png-codecs#readme"
+"Bug Tracker" = "https://github.com/datajoint/dj-png-codecs/issues"
+
+[dependency-groups]
+test = [
+  "pytest >=9",
+  "pytest-cov >=7",
+  "testcontainers>=4.14.0"
+]
+dev = [
+  { include-group = "test" },
+]
+docs = [
+    "markdown>=3.9",
+    "mdx-include>=1.4.2",
+    "mkdocs-material>=9.1.19",
+    "mkdocs>=1.1.2",
+    "mkdocstrings-python>=1.18.2",
+    "pyyaml>=6.0.1",
+]
+
+
+
+[project.entry-points."datajoint.codecs"]
+png = "dj_png_codecs:PngCodec"
+
+[tool.hatch]
+version.source = "vcs"
+build.hooks.vcs.version-file = "src/dj_png_codecs/_version.py"
+
+[tool.hatch.envs.default]
+dependency-groups = ["dev"]
+
+[tool.hatch.envs.hatch-test]
+dependency-groups = ["test"]
+env-vars.PYTHONWARNDEFAULTENCODING = "1"
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+addopts = ["-ra", "--showlocals"]
+strict = true
+filterwarnings = [
+  "error",
+  "ignore:.*'delimitedList' deprecated:DeprecationWarning",
+  "ignore:.*'setResultsName' deprecated:DeprecationWarning",
+  "ignore:.*'unquoteResults' argument is deprecated:DeprecationWarning",
+  "ignore:.*'endQuoteChar' argument is deprecated:DeprecationWarning",
+  "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning",
+  "ignore:No datajoint.json found.:UserWarning",
+  "ignore:datajoint.migrate is deprecated:DeprecationWarning"
+]
+log_level = "INFO"
+testpaths = [
+  "tests",
+]
+
+[tool.coverage]
+run.source = ["dj_png_codecs"]
+report.exclude_also = [
+  '\.\.\.',
+  'if typing.TYPE_CHECKING:',
+]
+
+[tool.mypy]
+files = ["src", "tests"]
+# 3.12, not the 3.11 floor in requires-python: numpy ships stubs using PEP 695
+# `type` statements, which mypy cannot parse when targeting < 3.12. The 3.11
+# floor is enforced by ruff (which infers it from requires-python) and pylint.
+python_version = "3.12"
+warn_unused_configs = true
+strict = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+warn_unreachable = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = "dj_png_codecs.*"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+  "datajoint",
+  "datajoint.*",
+  "testcontainers",
+  "testcontainers.*",
+  "numpy",
+  "numpy.*",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+
+[tool.ruff.lint]
+extend-select = [
+  "ARG",    # flake8-unused-arguments
+  "B",      # flake8-bugbear
+  "BLE",    # flake8-blind-except
+  "C4",     # flake8-comprehensions
+  "DTZ",    # flake8-datetimez
+  "EM",     # flake8-errmsg
+  "EXE",    # flake8-executable
+  "FA",     # flake8-future-annotations
+  "FLY",    # flynt
+  "FURB",   # refurb
+  "G",      # flake8-logging-format
+  "I",      # isort
+  "ICN",    # flake8-import-conventions
+  "ISC",    # flake8-implicit-str-concat
+  "LOG",    # flake8-logging
+  "NPY",    # NumPy specific rules
+  "PD",     # pandas-vet
+  "PERF",   # perflint
+  "PGH",    # pygrep-hooks
+  "PIE",    # flake8-pie
+  "PL",     # pylint
+  "PT",     # flake8-pytest-style
+  "PTH",    # flake8-use-pathlib
+  "PYI",    # flake8-pyi
+  "Q",      # flake8-quotes
+  "RET",    # flake8-return
+  "RSE",    # flake8-raise
+  "RUF",    # Ruff-specific
+  "SIM",    # flake8-simplify
+  "SLOT",   # flake8-slots
+  "T10",    # flake8-debugger
+  "T20",    # flake8-print
+  "TC",     # flake8-type-checking
+  "TRY",    # tryceratops
+  "UP",     # pyupgrade
+  "YTT",    # flake8-2020
+]
+ignore = [
+  "PLR09",    # Too many <...>
+  "PLR2004",  # Magic value used in comparison
+]
+# Uncomment if using a _compat.typing backport
+# typing-modules = ["dj_png_codecs._compat.typing"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["T20"]
+"noxfile.py" = ["T20"]
+"docs/examples/**" = ["T20"]
+"src/**/_version.py" = ["UP007"]  # auto-generated by hatch-vcs
+
+
+[tool.pylint]
+py-version = "3.11"  # matches requires-python
+ignore-paths = [".*/_version.py"]
+reports.output-format = "colorized"
+similarities.ignore-imports = "yes"
+messages_control.disable = [
+  "design",
+  "fixme",
+  "line-too-long",
+  "missing-module-docstring",
+  "missing-function-docstring",
+  "wrong-import-position",
+  "import-outside-toplevel",
+]
