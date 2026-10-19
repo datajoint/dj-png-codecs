@@ -8,8 +8,8 @@ with schema-addressed paths.
 This package provides a DataJoint codec that stores 2D images, including binary
 masks, as standard PNG files in object storage, using DataJoint's
 schema-addressed storage system. PNG compression is lossless, so every array is
-returned exactly, and any image viewer, browser, or file browser opens the stored
-file as a picture.
+returned exactly, and any image viewer, browser, or file browser opens the
+stored file as a picture.
 
 ## Features
 
@@ -78,15 +78,14 @@ Store images as PNG files with schema-addressed paths.
 
 **Supported arrays:**
 
-| dtype | shape | stored as |
-|---|---|---|
-| `bool` | (height, width) | 8-bit grayscale, 0 and 255 |
-| `uint8`, `uint16` | (height, width) | 8- or 16-bit grayscale |
+| dtype             | shape                       | stored as                     |
+| ----------------- | --------------------------- | ----------------------------- |
+| `bool`            | (height, width)             | 8-bit grayscale, 0 and 255    |
+| `uint8`, `uint16` | (height, width)             | 8- or 16-bit grayscale        |
 | `uint8`, `uint16` | (height, width, c), c = 1–4 | gray, gray + alpha, RGB, RGBA |
 
 Other arrays (floats, wider integers, more than 4 channels, more than two
-spatial dimensions) are refused rather than converted; store them with
-`<npy@>`.
+spatial dimensions) are refused rather than converted; store them with `<npy@>`.
 
 **Usage:**
 

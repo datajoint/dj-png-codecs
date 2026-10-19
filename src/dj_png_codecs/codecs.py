@@ -139,8 +139,8 @@ def decode_png(data: bytes) -> npt.NDArray[Any]:
         raise DataJointError(msg)
     channels = _CHANNELS[color_type]
     pixel_bytes = channels * bit_depth // 8
-    raw = np.frombuffer(zlib.decompress(b"".join(idat)), np.uint8)
-    raw = raw.reshape(height, 1 + width * pixel_bytes)
+    stream = np.frombuffer(zlib.decompress(b"".join(idat)), np.uint8)
+    raw = stream.reshape(height, 1 + width * pixel_bytes)
     filters, rows = raw[:, 0], raw[:, 1:].copy()
     if (filters == _UP).all():  # as encode_png writes: undo Up for all rows at once
         rows = np.cumsum(rows, axis=0, dtype=np.uint8)

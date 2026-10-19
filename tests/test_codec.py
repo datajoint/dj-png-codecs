@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import struct
 import zlib
+from typing import Any
 
 import datajoint as dj
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from dj_png_codecs import PngCodec, PngRef, decode_png, encode_png
@@ -164,7 +166,7 @@ def test_bool_mask_roundtrip(schema: dj.Schema) -> None:
     assert ref.shape == (64, 48)
     assert ref.dtype == np.dtype(bool)
     assert ref.path.endswith(".png")
-    loaded = np.asarray(ref)
+    loaded: npt.NDArray[Any] = np.asarray(ref)
     assert loaded.dtype == bool
     np.testing.assert_array_equal(loaded, mask)
 
