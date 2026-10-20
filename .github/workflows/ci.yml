@@ -31,7 +31,11 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.x"
+          # Not "3.x", which now resolves to 3.15: the pylint session installs
+          # datajoint, whose dependency deepdiff 9.1 needs cachebox 5, which has
+          # no Python 3.15 build. Return to "3.x" once datajoint 2.3.5 is on PyPI:
+          # it supports Python 3.15 and keeps deepdiff below 9 there.
+          python-version: "3.14"
 
       - uses: astral-sh/setup-uv@v7
 
