@@ -6,10 +6,14 @@ on:
   push:
     branches:
       - main
+  # The CD workflow runs this as the test gate of a release.
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # "CI" rather than github.workflow, which in a run called from CD is "CD":
+  # sharing the caller's group is a deadlock, and GitHub cancels the run.
+  group: CI-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 env:
   # Many color libraries just need this variable to be set to any value.
