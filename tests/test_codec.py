@@ -214,6 +214,36 @@ def test_png_ref_refuses_mmap() -> None:
         ref.load(mmap_mode="r")
 
 
+# The codec context, which DataJoint 2.3.4 and later pass
+
+# How DataJoint 2.3 still fills `key`; the codec does not read the underscore keys.
+LEGACY_KEY = {
+    "id": 1,
+    "_schema": "s",
+    "_table": "t",
+    "_field": "f",
+    "_config": dj.config,
+}
+
+
+@pytest.mark.parametrize(
+    "context",
+    [None, {"schema": "s", "table": "t", "field": "f"}],
+    ids=["no context", "no config"],
+)
+def test_encode_needs_context(context: dict[str, Any] | None) -> None:
+    with pytest.raises(dj.DataJointError, match=r"DataJoint 2\.3\.4"):
+        PngCodec().encode(
+            IMAGES["uint8"], key=LEGACY_KEY, context=context, store_name="store"
+        )
+
+
+def test_decode_needs_context() -> None:
+    stored = {"path": "x.png", "store": None, "dtype": "uint8", "shape": [2, 2]}
+    with pytest.raises(dj.DataJointError, match=r"missing: config"):
+        PngCodec().decode(stored, key={"_config": dj.config}, context=None)
+
+
 # Through DataJoint, with a database and a file store
 
 
