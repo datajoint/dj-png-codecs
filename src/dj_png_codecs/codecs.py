@@ -56,8 +56,8 @@ def encode_png(image: npt.NDArray[Any]) -> bytes:
     """
     Encode an image array as PNG bytes.
 
-    ``bool`` arrays are written as 8-bit grayscale with 0 for False and 255 for
-    True, so that any image viewer shows them as black and white. ``uint8`` and
+    ``bool`` arrays are written as 1-bit grayscale, PNG's own format for bilevel
+    images, which any image viewer shows as black and white. ``uint8`` and
     ``uint16`` arrays are written at 8 and 16 bits per sample. Every row uses the
     PNG "Up" filter.
 
@@ -72,13 +72,18 @@ def encode_png(image: npt.NDArray[Any]) -> bytes:
         A complete PNG file.
     """
     _check_image(image)
-    if image.dtype == bool:
-        image = np.where(image, np.uint8(255), np.uint8(0))
     height, width = image.shape[:2]
     channels = 1 if image.ndim == 2 else image.shape[2]
-    bit_depth = 16 if image.dtype == np.uint16 else 8
-    samples = np.ascontiguousarray(image, dtype=">u2" if bit_depth == 16 else np.uint8)
-    rows = samples.view(np.uint8).reshape(height, -1)
+    if image.dtype == bool:
+        bit_depth = 1
+        # eight pixels per byte, the first in the high bit, each row padded to a whole byte
+        rows = np.packbits(image.reshape(height, width), axis=1)
+    else:
+        bit_depth = 16 if image.dtype == np.uint16 else 8
+        samples = np.ascontiguousarray(
+            image, dtype=">u2" if bit_depth == 16 else np.uint8
+        )
+        rows = samples.view(np.uint8).reshape(height, -1)
     # Up filter: each byte minus the byte above it, modulo 256
     filtered = rows.copy()
     filtered[1:] -= rows[:-1]
@@ -97,8 +102,9 @@ def decode_png(data: bytes) -> npt.NDArray[Any]:
     """
     Decode PNG bytes written by :func:`encode_png`.
 
-    Supports non-interlaced grayscale, gray + alpha, RGB, and RGBA images at 8 or
-    16 bits per sample, with the PNG filter types None, Sub, and Up.
+    Supports non-interlaced 1-bit grayscale images, and grayscale, gray + alpha,
+    RGB, and RGBA images at 8 or 16 bits per sample, with the PNG filter types
+    None, Sub, and Up.
 
     Parameters
     ----------
@@ -108,6 +114,7 @@ def decode_png(data: bytes) -> npt.NDArray[Any]:
     Returns
     -------
     numpy.ndarray
+        ``bool`` array of shape (height, width) for a 1-bit image; otherwise a
         ``uint8`` or ``uint16`` array of shape (height, width) or
         (height, width, channels).
     """
@@ -130,17 +137,20 @@ def decode_png(data: bytes) -> npt.NDArray[Any]:
         msg = "PNG file has no header"
         raise DataJointError(msg)
     width, height, bit_depth, color_type, _, _, interlace = header
-    if bit_depth not in (8, 16) or color_type not in _CHANNELS or interlace:
+    bilevel = bit_depth == 1 and color_type == 0
+    if not (bilevel or (bit_depth in (8, 16) and color_type in _CHANNELS)) or interlace:
         msg = (
-            "<png> reads 8- and 16-bit, non-interlaced gray, gray + alpha, RGB, "
-            f"and RGBA images (got bit depth {bit_depth}, color type {color_type}, "
-            f"interlace {interlace})"
+            "<png> reads non-interlaced images: 1-bit gray, and 8- and 16-bit gray, "
+            f"gray + alpha, RGB, and RGBA (got bit depth {bit_depth}, color type "
+            f"{color_type}, interlace {interlace})"
         )
         raise DataJointError(msg)
     channels = _CHANNELS[color_type]
-    pixel_bytes = channels * bit_depth // 8
+    # bytes per pixel, which the Sub filter steps by: one for a 1-bit image
+    pixel_bytes = max(1, channels * bit_depth // 8)
+    row_bytes = (width * channels * bit_depth + 7) // 8
     stream = np.frombuffer(zlib.decompress(b"".join(idat)), np.uint8)
-    raw = stream.reshape(height, 1 + width * pixel_bytes)
+    raw = stream.reshape(height, 1 + row_bytes)
     filters, rows = raw[:, 0], raw[:, 1:].copy()
     if (filters == _UP).all():  # as encode_png writes: undo Up for all rows at once
         rows = np.cumsum(rows, axis=0, dtype=np.uint8)
@@ -149,7 +159,7 @@ def decode_png(data: bytes) -> npt.NDArray[Any]:
         if filters[r] == 0:
             continue
         if filters[r] == 1:  # Sub: running sum along the row, per byte of the pixel
-            pixels = rows[r].reshape(width, pixel_bytes)
+            pixels = rows[r].reshape(-1, pixel_bytes)
             rows[r] = np.cumsum(pixels, axis=0, dtype=np.uint8).ravel()
         elif filters[r] == _UP:
             if r:
@@ -157,6 +167,8 @@ def decode_png(data: bytes) -> npt.NDArray[Any]:
         else:
             msg = f"<png> does not decode PNG filter type {filters[r]}"
             raise DataJointError(msg)
+    if bilevel:
+        return np.unpackbits(rows, axis=1, count=width).astype(bool)
     image: npt.NDArray[Any] = (
         rows.view(">u2").astype(np.uint16) if bit_depth == 16 else rows
     )
@@ -193,6 +205,7 @@ class PngRef(NpyRef):  # type: ignore[misc]
             raise DataJointError(msg)
         if self._cached is None:  # type: ignore[has-type]
             image = decode_png(self._backend.get_buffer(self.path))
+            # a bool image is 1-bit, or 0 and 255 at 8 bits as earlier versions wrote it
             if self.dtype == bool:
                 image = image > 0
             self._cached = image.reshape(self.shape)  # type: ignore[misc]  # slot of NpyRef
@@ -216,7 +229,8 @@ class PngCodec(SchemaCodec):  # type: ignore[misc]
     ``<png@>`` with DataJoint through the ``datajoint.codecs`` entry point.
 
     Supported arrays:
-        - ``bool`` of shape (height, width): written as 0 and 255, returned as ``bool``
+        - ``bool`` of shape (height, width): written as a 1-bit black-and-white
+          image, returned as ``bool``
         - ``uint8`` or ``uint16`` of shape (height, width): grayscale
         - ``uint8`` or ``uint16`` of shape (height, width, c), c = 1 to 4:
           gray, gray + alpha, RGB, RGBA
@@ -241,7 +255,8 @@ class PngCodec(SchemaCodec):  # type: ignore[misc]
         mask = np.asarray(ref)                     # bool array
 
     Storage Details:
-        - File format: PNG, 8 or 16 bits per sample, non-interlaced
+        - File format: PNG, non-interlaced; 1 bit per pixel for ``bool``,
+          otherwise 8 or 16 bits per sample
         - Path: ``{schema_prefix}/{schema}/{table}/{pk}/{attribute}_{token}.png``
         - Database column: JSON with ``{path, store, dtype, shape}``
 

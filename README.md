@@ -15,8 +15,9 @@ stored file as a picture.
 
 - **Viewable files**: every stored image is a standard PNG
 - **Lossless**: the array is returned exactly, dtype and shape included
-- **Binary masks**: `bool` arrays are written as black (0) and white (255), so
-  they display correctly anywhere, and are returned as `bool`
+- **Binary masks**: `bool` arrays are written as 1-bit black-and-white images,
+  PNG's own format for masks, so they display correctly anywhere, and are
+  returned as `bool`
 - **Compact**: a 512 × 512 binary mask takes a few kilobytes instead of 256 KB
 - **Schema-addressed storage**: paths mirror the database structure
   (`{schema}/{table}/{pk}/{field}_{token}.png`)
@@ -80,7 +81,7 @@ Store images as PNG files with schema-addressed paths.
 
 | dtype             | shape                       | stored as                     |
 | ----------------- | --------------------------- | ----------------------------- |
-| `bool`            | (height, width)             | 8-bit grayscale, 0 and 255    |
+| `bool`            | (height, width)             | 1-bit grayscale               |
 | `uint8`, `uint16` | (height, width)             | 8- or 16-bit grayscale        |
 | `uint8`, `uint16` | (height, width, c), c = 1–4 | gray, gray + alpha, RGB, RGBA |
 

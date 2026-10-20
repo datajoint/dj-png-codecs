@@ -23,6 +23,38 @@ IMAGES = {
 }
 
 
+def _header(png: bytes) -> tuple[int, int, int, int]:
+    """Width, height, bit depth, and color type."""
+    width, height, bit_depth, color_type = struct.unpack(">IIBB", png[16:26])
+    return width, height, bit_depth, color_type
+
+
+def _with_scanlines(png: bytes, raw: np.ndarray) -> bytes:
+    """The PNG with its image data replaced by these filtered scanlines."""
+    out = bytearray(png)
+    start = out.index(b"IDAT") - 4
+    (length,) = struct.unpack(">I", out[start : start + 4])
+    body = zlib.compress(raw.tobytes())
+    chunk = (
+        struct.pack(">I", len(body))
+        + b"IDAT"
+        + body
+        + struct.pack(">I", zlib.crc32(b"IDAT" + body) & 0xFFFFFFFF)
+    )
+    out[start : start + 12 + length] = chunk
+    return bytes(out)
+
+
+class _Files:
+    """A storage backend holding files in memory, for loading a PngRef without a store."""
+
+    def __init__(self, files: dict[str, bytes]) -> None:
+        self.files = files
+
+    def get_buffer(self, path: str) -> bytes:
+        return self.files[path]
+
+
 def _pixels(png: bytes) -> np.ndarray:
     """Decompressed scanlines of a PNG written with the Up filter, filters undone."""
     pos, idat, header = 8, [], None
@@ -47,24 +79,52 @@ def _pixels(png: bytes) -> np.ndarray:
 def test_format_roundtrip(name: str) -> None:
     image = IMAGES[name]
     decoded = decode_png(encode_png(image))
-    if image.dtype == bool:
-        decoded = decoded > 0
+    assert decoded.dtype == image.dtype
     np.testing.assert_array_equal(decoded.reshape(image.shape), image)
 
 
 def test_signature_and_header() -> None:
     png = encode_png(IMAGES["uint16 RGBA"])
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
-    width, height, bit_depth, color_type = struct.unpack(">IIBB", png[16:26])
-    assert (width, height, bit_depth, color_type) == (32, 24, 16, 6)
+    assert _header(png) == (32, 24, 16, 6)
 
 
-def test_bool_written_as_0_and_255() -> None:
-    mask = np.zeros((8, 8), bool)
-    mask[2:5, 3:6] = True
-    pixels = _pixels(encode_png(mask))
-    assert set(np.unique(pixels)) == {0, 255}
-    np.testing.assert_array_equal(pixels == 255, mask)
+@pytest.mark.parametrize("width", [1, 7, 8, 9, 33])
+def test_bool_written_as_1_bit(width: int) -> None:
+    mask = RNG.random((5, width)) > 0.5
+    png = encode_png(mask)
+    assert _header(png) == (width, 5, 1, 0)
+    # eight pixels per byte, the first in the high bit, each row padded to a whole byte
+    np.testing.assert_array_equal(_pixels(png), np.packbits(mask, axis=1))
+    decoded = decode_png(png)
+    assert decoded.dtype == bool
+    np.testing.assert_array_equal(decoded, mask)
+
+
+def test_bool_single_channel_shape() -> None:
+    mask = RNG.random((6, 10, 1)) > 0.5
+    png = encode_png(mask)
+    assert _header(png) == (10, 6, 1, 0)
+    np.testing.assert_array_equal(decode_png(png), mask[:, :, 0])
+
+
+def test_8_bit_masks_still_load_as_bool() -> None:
+    """Masks written by earlier versions, as 0 and 255 at 8 bits, load as bool."""
+    mask = IMAGES["bool"]
+    png = encode_png(np.where(mask, np.uint8(255), np.uint8(0)))
+    assert _header(png)[2] == 8
+    ref = PngRef(
+        {
+            "path": "x/mask.png",
+            "store": None,
+            "dtype": "bool",
+            "shape": list(mask.shape),
+        },
+        backend=_Files({"x/mask.png": png}),
+    )
+    loaded = ref.load()
+    assert loaded.dtype == bool
+    np.testing.assert_array_equal(loaded, mask)
 
 
 def test_binary_mask_compresses() -> None:
@@ -80,18 +140,26 @@ def test_decode_sub_filter() -> None:
     sub = rows.copy()
     sub[:, 3:] -= rows[:, :-3]
     raw = np.hstack([np.ones((rows.shape[0], 1), np.uint8), sub])
-    png = bytearray(encode_png(image))
-    start = png.index(b"IDAT") - 4
-    (length,) = struct.unpack(">I", png[start : start + 4])
-    body = zlib.compress(raw.tobytes())
-    chunk = (
-        struct.pack(">I", len(body))
-        + b"IDAT"
-        + body
-        + struct.pack(">I", zlib.crc32(b"IDAT" + body) & 0xFFFFFFFF)
-    )
-    png[start : start + 12 + length] = chunk
-    np.testing.assert_array_equal(decode_png(bytes(png)), image)
+    png = _with_scanlines(encode_png(image), raw)
+    np.testing.assert_array_equal(decode_png(png), image)
+
+
+def test_decode_1_bit_sub_filter() -> None:
+    """In a 1-bit image, the Sub filter steps by one byte."""
+    mask = RNG.random((6, 21)) > 0.5
+    rows = np.packbits(mask, axis=1)
+    sub = rows.copy()
+    sub[:, 1:] -= rows[:, :-1]
+    raw = np.hstack([np.ones((rows.shape[0], 1), np.uint8), sub])
+    png = _with_scanlines(encode_png(mask), raw)
+    np.testing.assert_array_equal(decode_png(png), mask)
+
+
+def test_decode_refuses_2_bit() -> None:
+    png = bytearray(encode_png(IMAGES["bool"]))
+    png[24] = 2  # bit depth, in IHDR
+    with pytest.raises(dj.DataJointError, match="bit depth 2"):
+        decode_png(bytes(png))
 
 
 @pytest.mark.parametrize(
