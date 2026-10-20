@@ -31,7 +31,7 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "datajoint>=2.3",
+    "datajoint>=2.3.4",
     "numpy>=2.0",
 ]
 

@@ -571,7 +571,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "datajoint", specifier = ">=2.3" },
+    { name = "datajoint", specifier = ">=2.3.4" },
     { name = "numpy", specifier = ">=2.0" },
 ]
 
