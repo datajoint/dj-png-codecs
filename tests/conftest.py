@@ -11,18 +11,21 @@ logger = logging.getLogger(__name__)
 
 
 def _is_docker_available() -> bool:
-    """Check if Docker daemon is running and accessible."""
+    """Check that a Docker daemon is running and can run Linux containers."""
     try:
         result = subprocess.run(
-            ["docker", "info"],
+            ["docker", "info", "--format", "{{.OSType}}"],
             capture_output=True,
+            text=True,
             timeout=5,
             check=False,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
     else:
-        return result.returncode == 0
+        # GitHub's Windows runners run Docker with Windows containers, which
+        # cannot start the Linux MySQL image, so the tests skip there.
+        return result.returncode == 0 and result.stdout.strip() == "linux"
 
 
 # Check if Docker is available
