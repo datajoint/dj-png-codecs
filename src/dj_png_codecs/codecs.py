@@ -216,6 +216,29 @@ class PngRef(NpyRef):  # type: ignore[misc]
         return f"PngRef(shape={self.shape}, dtype={self.dtype}, {status})"
 
 
+def _require_context(context: dict[str, Any] | None, *names: str) -> dict[str, Any]:
+    """
+    Return ``context``, checked to carry ``names``.
+
+    DataJoint 2.3.4 and later pass ``context`` to every codec that declares it:
+    ``schema``, ``table``, ``field``, and ``config`` on insert, ``config`` on
+    fetch. The codec reads them there only, never from underscore keys in ``key``.
+    """
+    missing = [n for n in names if context is None or context.get(n) is None]
+    if context is None or missing:
+        msg = (
+            "<png> needs the context that DataJoint 2.3.4 and later pass to codecs "
+            f"(missing: {', '.join(missing)}); install datajoint>=2.3.4"
+        )
+        raise DataJointError(msg)
+    return context
+
+
+def _primary_key(key: dict[str, Any] | None) -> dict[str, Any]:
+    """The primary key values in ``key``, without the underscore keys DataJoint 2.3 adds."""
+    return {k: v for k, v in (key or {}).items() if not k.startswith("_")}
+
+
 class PngCodec(SchemaCodec):  # type: ignore[misc]
     """
     Schema-addressed storage for images as .png files.
@@ -297,14 +320,20 @@ class PngCodec(SchemaCodec):  # type: ignore[misc]
         -------
         dict
             JSON metadata: ``{path, store, dtype, shape}``.
+
+        Raises
+        ------
+        DataJointError
+            If ``context`` lacks the ``schema``, ``table``, ``field``, or
+            ``config`` that DataJoint 2.3.4 and later pass.
         """
-        schema, table, field, primary_key = self._extract_context(key, context)
-        config = self._codec_config(key, context)
+        context = _require_context(context, "schema", "table", "field", "config")
+        config = context["config"]
         path, _ = self._build_path(
-            schema,
-            table,
-            field,
-            primary_key,
+            context["schema"],
+            context["table"],
+            context["field"],
+            _primary_key(key),
             ext=".png",
             store_name=store_name,
             config=config,
@@ -327,7 +356,15 @@ class PngCodec(SchemaCodec):  # type: ignore[misc]
         key: dict[str, Any] | None = None,
         context: dict[str, Any] | None = None,
     ) -> PngRef:
-        """Create a lazy PngRef from stored metadata."""
-        config = self._codec_config(key, context)
+        """
+        Create a lazy PngRef from stored metadata.
+
+        Raises
+        ------
+        DataJointError
+            If ``context`` lacks the ``config`` that DataJoint 2.3.4 and later pass.
+        """
+        del key  # the stored metadata locates the file
+        config = _require_context(context, "config")["config"]
         backend = self._get_backend(stored.get("store"), config=config)
         return PngRef(stored, backend)

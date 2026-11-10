@@ -30,6 +30,8 @@ stored file as a picture.
 pip install dj-png-codecs
 ```
 
+Requires Python 3.10 or later and `datajoint>=2.3.4`.
+
 ## Quick Start
 
 ```python

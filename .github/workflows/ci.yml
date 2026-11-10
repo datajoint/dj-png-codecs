@@ -6,10 +6,14 @@ on:
   push:
     branches:
       - main
+  # The CD workflow runs this as the test gate of a release.
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # "CI" rather than github.workflow, which in a run called from CD is "CD":
+  # sharing the caller's group is a deadlock, and GitHub cancels the run.
+  group: CI-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 env:
   # Many color libraries just need this variable to be set to any value.
@@ -27,7 +31,11 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.x"
+          # Not "3.x", which now resolves to 3.15: the pylint session installs
+          # datajoint, whose dependency deepdiff 9.1 needs cachebox 5, which has
+          # no Python 3.15 build. Return to "3.x" once datajoint 2.3.5 is on PyPI:
+          # it supports Python 3.15 and keeps deepdiff below 9 there.
+          python-version: "3.14"
 
       - uses: astral-sh/setup-uv@v7
 

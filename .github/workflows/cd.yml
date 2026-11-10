@@ -1,18 +1,26 @@
 name: CD
 
+# Pull requests and pushes to main build the package. A release is an annotated
+# tag vX.Y.Z on main whose message is the release notes: pushing it checks the
+# tag, runs the CI workflow, publishes the package built at the tag (hatch-vcs
+# takes the version from the tag), and creates the GitHub release with the
+# tag's message as its notes.
+#
+# PyPI trusted publishing is bound to this file's name and to the pypi
+# environment, so neither can be renamed without updating PyPI.
 on:
   workflow_dispatch:
   pull_request:
   push:
     branches:
       - main
-  release:
-    types:
-      - published
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push replaces a build in progress; a release is never cancelled.
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 env:
   # Many color libraries just need this to be set to any value, but at least
@@ -35,8 +43,31 @@ jobs:
       # pins the full version deliberately.
       - uses: hynek/build-and-inspect-python-package@v3.0.1
 
+  check:
+    name: Check the release tag
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.check.outputs.publish }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check the tag
+        id: check
+        run: .github/scripts/check_release_tag.sh "$GITHUB_REF_NAME" main
+
+  ci:
+    name: CI
+    needs: [check]
+    if: needs.check.outputs.publish == 'true'
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
   publish:
-    needs: [dist]
+    needs: [dist, check, ci]
     name: Publish to PyPI
     environment: pypi
     permissions:
@@ -44,7 +75,9 @@ jobs:
       attestations: write
       contents: read
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: github.ref_type == 'tag' && needs.check.outputs.publish == 'true'
+    env:
+      TAG: ${{ github.ref_name }}
 
     steps:
       - uses: actions/download-artifact@v8
@@ -52,13 +85,50 @@ jobs:
           name: Packages
           path: dist
 
+      - name: Check the built version
+        run: |
+          version="${TAG#v}"
+          for file in dist/*; do
+            case "$(basename "$file")" in
+              "dj_png_codecs-$version-"*.whl | "dj_png_codecs-$version.tar.gz") ;;
+              *) echo "::error::$file does not carry version $version"; exit 1 ;;
+            esac
+          done
+
       - name: Generate artifact attestation for sdist and wheel
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: "dist/*"
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    needs: [publish]
+    name: Create the GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v7
         with:
-          # Remember to tell (test-)pypi about this repo before publishing
-          # Remove this line to publish to PyPI
-          repository-url: https://test.pypi.org/legacy/
+          fetch-depth: 0
+
+      - name: Fetch the tag object
+        # actions/checkout can store an annotated tag as a lightweight ref.
+        run: git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: Packages
+          path: dist
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git for-each-ref "refs/tags/$TAG" --format='%(contents)' > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" --verify-tag --title "dj-png-codecs ${TAG#v}" \
+            --notes-file "$RUNNER_TEMP/notes.md" dist/*
