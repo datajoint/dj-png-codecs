@@ -9,6 +9,9 @@ on:
   # The CD workflow runs this as the test gate of a release.
   workflow_call:
 
+permissions:
+  contents: read
+
 concurrency:
   # "CI" rather than github.workflow, which in a run called from CD is "CD":
   # sharing the caller's group is a deadlock, and GitHub cancels the run.
@@ -26,10 +29,11 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Not "3.x", which now resolves to 3.15: the pylint session installs
           # datajoint, whose dependency deepdiff 9.1 needs cachebox 5, which has
@@ -37,12 +41,12 @@ jobs:
           # it supports Python 3.15 and keeps deepdiff below 9 there.
           python-version: "3.14"
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
       - name: Generate version file
         run: uvx hatch build --hooks-only
 
-      - uses: pre-commit/action@v3.0.1
+      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
         with:
           extra_args: --hook-stage manual --all-files
       - name: Run Pylint
@@ -59,16 +63,17 @@ jobs:
         runs-on: [ubuntu-latest, windows-latest, macos-latest, macos-15-intel]
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
       - name: Install package
         run: uv sync
@@ -79,6 +84,6 @@ jobs:
           --durations=20
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
