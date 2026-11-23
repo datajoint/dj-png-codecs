@@ -502,7 +502,7 @@ wheels = [
 
 [[package]]
 name = "datajoint"
-version = "2.3.5"
+version = "2.3.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "deepdiff", version = "8.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
@@ -524,9 +524,9 @@ dependencies = [
     { name = "pyparsing" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/87/a6/551da8d5a18cae4f8acf4d53cf9a568360aaa64a3d25234bcc508a03393c/datajoint-2.3.5.tar.gz", hash = "sha256:48cc391d8419479b91d0eef1ca785c1b7c0f5155155b1d5b55fbeede75fcb30a", size = 629104, upload-time = "2026-10-21T16:24:42.569Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/d3/1845d5e87ef5455e818250d408d3550a68ffb007de509aee51fbf6331af9/datajoint-2.3.6.tar.gz", hash = "sha256:00f7f9a9db144d806c8fbf6021c6103111dc444be96aa7b29ed600f53de3eee7", size = 662601, upload-time = "2026-11-18T16:54:49.845Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bc/1b/38724e6d38ea5e2075c76439664286612a72c61fb3915891910199971925/datajoint-2.3.5-py3-none-any.whl", hash = "sha256:c56bf45e60ff321dd1149a764d7a3a8609a64be420765a42b17a4c59093b0efe", size = 274058, upload-time = "2026-10-21T16:24:41.3Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/b9/1656b0721d29acd105094193883b9e1d746ffa64dc4c59c55a866a018374/datajoint-2.3.6-py3-none-any.whl", hash = "sha256:112c89f23a71f0a36c608ac956fa57050db276abe7d28d820e26599fee0e0630", size = 286159, upload-time = "2026-11-18T16:54:48.377Z" },
 ]
 
 [[package]]
