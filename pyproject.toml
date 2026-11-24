@@ -46,8 +46,8 @@ test = [
   "pytest >=9",
   "pytest-cov >=7",
   "testcontainers>=4.14.0",
-  # The tests connect with use_tls=False. Without TLS, logging in to MySQL 8
-  # needs cryptography (datajoint 2.3.6 and later turn TLS off), and PyMySQL
+  # The tests connect with use_tls=False, which datajoint 2.3.6 and later
+  # honor. Without TLS, logging in to MySQL 8 needs cryptography, and PyMySQL
   # 1.2.1 to 1.2.3 fail that login.
   "cryptography>=42",
   "pymysql>=1.2.4",
